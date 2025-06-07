@@ -51,13 +51,13 @@ ls(char *path)
       printf("ls: path too long\n");
       break;
     }
-    strcpy(buf, path);
-    p = buf+strlen(buf);
-    *p++ = '/';
-    while(read(fd, &de, sizeof(de)) == sizeof(de)){
-      if(de.inum == 0)
+    strcpy(buf, path); // if path is "a/b", buf = "a/b"
+    p = buf+strlen(buf); // p = buf + 3
+    *p++ = '/'; // buf = "a/b/", p = buf + 4
+    while(read(fd, &de, sizeof(de)) == sizeof(de)){ // fd = open("a/b")
+      if(de.inum == 0) // if the dirent is invalid
         continue;
-      memmove(p, de.name, DIRSIZ);
+      memmove(p, de.name, DIRSIZ); // buf = "a/b/de_name"
       p[DIRSIZ] = 0;
       if(stat(buf, &st) < 0){
         printf("ls: cannot stat %s\n", buf);
