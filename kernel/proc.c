@@ -305,6 +305,9 @@ fork(void)
 
   pid = np->pid;
 
+  // copy trace mask
+  np->trace_mask = p->trace_mask;
+
   release(&np->lock);
 
   acquire(&wait_lock);
@@ -314,6 +317,7 @@ fork(void)
   acquire(&np->lock);
   np->state = RUNNABLE;
   release(&np->lock);
+
 
   return pid;
 }
@@ -653,4 +657,19 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+// Returns the number of processes whose state is not UNUSED
+int 
+proc_num(void)
+{
+  int count = 0;
+  struct proc *p;
+  for (p = proc; p < &proc[NPROC]; p++) {
+    if (p->state == UNUSED) {
+      continue;
+    }
+    count++;
+  }
+  return count;
 }

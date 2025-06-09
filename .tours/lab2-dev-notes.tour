@@ -1,0 +1,61 @@
+{
+  "$schema": "https://aka.ms/codetour-schema",
+  "title": "lab2-dev-notes",
+  "steps": [
+    {
+      "file": "user/user.h",
+      "description": "add a prototype for the system call",
+      "line": 26
+    },
+    {
+      "file": "user/usys.pl",
+      "description": "add a stub\n\nThe Makefile invokes the perl script user/usys.pl, \nwhich produces user/usys.S, the actual system call stubs, \nwhich use the RISC-V ecall instruction to transition to the kernel.",
+      "line": 39
+    },
+    {
+      "file": "kernel/syscall.h",
+      "description": "add a syscall number",
+      "line": 23
+    },
+    {
+      "file": "kernel/sysproc.c",
+      "description": "Add a sys_trace() function in kernel/sysproc.c that implements the new system call\nby remembering its argument in a new variable in the proc structure (see kernel/proc.h). ",
+      "line": 100
+    },
+    {
+      "file": "kernel/sysproc.c",
+      "selection": {
+        "start": {
+          "line": 104,
+          "character": 7
+        },
+        "end": {
+          "line": 104,
+          "character": 13
+        }
+      },
+      "description": "The functions to retrieve system call arguments from user space are in kernel/syscall.c\nargint..."
+    },
+    {
+      "file": "kernel/proc.c",
+      "description": "在此处copy trace mask能保证内核对 np 的所有初始化都在同一次“np 锁”下完成，但并不是出于并发写入同一字段的考虑；实际上，即使不加锁，单次的 np->trace_mask = p->trace_mask; 也是安全的。\n因为：\n1. 私有性\ntrace_mask 只是保存在每个进程自己的 `struct proc` 里，只有进程自己在系统调用里会修改自己的这个字段，父进程给子进程赋值时也只是单向的、一次性的赋值操作，不存在多个上下文并发写同一个字段的情况。\n\n2. 原子性\n一个 int 类型的赋值在常见 x86/ARM 平台上就是原子操作，不会出现写一半的“撕裂”（torn write）问题。",
+      "line": 309
+    },
+    {
+      "file": "user/user.h",
+      "description": "To declare the prototype for sysinfo() in user/user.h you need predeclare the existence of struct sysinfo",
+      "line": 3
+    },
+    {
+      "file": "kernel/sysproc.c",
+      "description": "sysinfo needs to copy a struct sysinfo back to user space; see sys_fstat() (kernel/sysfile.c) and filestat() (kernel/file.c) for examples of how to do that using copyout().",
+      "line": 125
+    },
+    {
+      "file": "kernel/sysproc.c",
+      "description": "To collect the amount of free memory, add a function to kernel/kalloc.c",
+      "line": 122
+    }
+  ],
+  "ref": "syscall"
+}
