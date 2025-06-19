@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "*.ipynb": "markdown",
+        "defs.h": "c"
+    }
+}

@@ -34,7 +34,7 @@ proc_mapstacks(pagetable_t kpgtbl) {
   struct proc *p;
   
   for(p = proc; p < &proc[NPROC]; p++) {
-    char *pa = kalloc();
+    char *pa = kalloc(); // alloc 1 page physical memory
     if(pa == 0)
       panic("kalloc");
     uint64 va = KSTACK((int) (p - proc));
@@ -127,6 +127,14 @@ found:
     return 0;
   }
 
+  // Allocate a usyscall physical page.
+  if ((p->usyscall = (struct usyscall *)kalloc()) == 0) {
+    freeproc(p);
+    release(&p->lock);
+    return 0;
+  }
+  p->usyscall->pid = p->pid;
+
   // An empty user page table.
   p->pagetable = proc_pagetable(p);
   if(p->pagetable == 0){
@@ -150,6 +158,11 @@ found:
 static void
 freeproc(struct proc *p)
 {
+  if (p->usyscall) {
+    // release the physical page allocated to usyscall
+    kfree((void *)p->usyscall);
+  }
+  p->usyscall = 0;
   if(p->trapframe)
     kfree((void*)p->trapframe);
   p->trapframe = 0;
@@ -196,6 +209,16 @@ proc_pagetable(struct proc *p)
     return 0;
   }
 
+  // map the USYSCALL just below TRAPFRAME, 
+  // to store the PID of the current process.
+  if (mappages(pagetable, USYSCALL, PGSIZE,
+              (uint64)(p->usyscall), PTE_R | PTE_U) < 0) {
+    uvmunmap(pagetable, TRAMPOLINE, 1, 0);
+    uvmunmap(pagetable, TRAPFRAME, 1, 0); // physical memory is released by freeproc in allocproc
+    uvmfree(pagetable, 0);
+    return 0;
+  }
+
   return pagetable;
 }
 
@@ -206,6 +229,7 @@ proc_freepagetable(pagetable_t pagetable, uint64 sz)
 {
   uvmunmap(pagetable, TRAMPOLINE, 1, 0);
   uvmunmap(pagetable, TRAPFRAME, 1, 0);
+  uvmunmap(pagetable, USYSCALL, 1, 0);
   uvmfree(pagetable, sz);
 }
 

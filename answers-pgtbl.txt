@@ -1,0 +1,69 @@
+Q: Which other xv6 system call(s) could be made faster using this shared page? Explain how.
+
+在xv6中，通过共享只读页（如USYSCALL页）加速系统调用的核心思路是将频繁读取的内核数据暴露到用户空间，避免陷入内核的模式切换开销。除了已实现的getpid()，以下系统调用也可通过类似机制优化：
+
+​gettimeofday() 获取当前时间
+​优化原理​：时间值通常频繁读取但极少修改（如每毫秒更新一次）。在共享页中维护一个由内核定期更新的时间戳（如struct { uint64 sec; uint64 usec; }），用户进程直接读取该地址即可
+。
+​优势​：避免为获取时间频繁陷入内核（如高频日志记录场景）。
+​uptime() 查询系统运行时长
+​优化原理​：系统启动时间在运行期间恒定不变。在共享页中存储启动时间戳（boot_time），用户程序通过current_time - boot_time计算运行时间
+。
+​注意事项​：需内核在定时器中断中更新current_time字段，确保用户空间读到最新值。
+​sbrk() 的堆指针查询
+​优化原理​：sbrk(0)仅查询当前堆顶地址而不分配内存。在共享页中维护进程内存布局（如struct { uint64 heap_start; uint64 heap_end; }），用户可直接读取堆边界
+。
+​限制​：仅优化查询操作，实际分配内存仍需调用完整sys_sbrk。
+​进程统计信息（如getrusage）​​
+​优化原理​：将只读的进程统计信息（如页错误计数、上下文切换次数）放入共享页。用户监控工具（如top）可直接读取无需为每个指标单独调用内核。
+
+Q: Explain the output of vmprint in terms of Fig 3-4 from the text. What does page 0 contain? What is in page 2? 
+   When running in user mode, could the process read/write the memory mapped by page 1? What does the third to last page contain?
+
+A:
+User memory layout.
+Address zero first:
+  text
+  original data and bss
+  fixed-size stack
+  expandable heap
+  ...
+  USYSCALL (shared with kernel)
+  TRAPFRAME (p->trapframe, used by the trampoline)
+  TRAMPOLINE (the same page as in the kernel)
+  
+output:
+page table 0x0000000087f6e000
+ ..0: pte 0x0000000021fda801 pa 0x0000000087f6a000
+ .. ..0: pte 0x0000000021fda401 pa 0x0000000087f69000
+ .. .. ..0: pte 0x0000000021fdac1f pa 0x0000000087f6b000
+ .. .. ..1: pte 0x0000000021fda00f pa 0x0000000087f68000
+ .. .. ..2: pte 0x0000000021fd9c1f pa 0x0000000087f67000
+ ..255: pte 0x0000000021fdb401 pa 0x0000000087f6d000
+ .. ..511: pte 0x0000000021fdb001 pa 0x0000000087f6c000
+ .. .. ..509: pte 0x0000000021fdd813 pa 0x0000000087f76000
+ .. .. ..510: pte 0x0000000021fddc07 pa 0x0000000087f77000
+ .. .. ..511: pte 0x0000000020001c0b pa 0x0000000080007000
+  
+
+1. Page 0（用户代码段）​​
+​输出行​：
+.. .. ..0: pte 0x0000000021fdac1f pa 0x0000000087f6b000
+​权限位​：0x1f = U|X|W|R|V
+存储用户代码段​（如 init 程序指令），用户态可读、可执行,​ 对应图 3-4​：用户地址空间的 text 段（低地址区域）。
+
+2. Page 2 
+输出行：
+.. .. ..2: pte 0x0000000021fd9c1f pa 0x0000000087f67000
+​权限位​：0x1f = U|X|W|R|V
+可能是用户堆栈
+
+3. Page 1
+输出行：
+.. .. ..1: pte 0x0000000021fda00f pa 0x0000000087f68000
+在user mode运行时，page 1的​权限位​：0x0f = X|W|R|V，用户不可以read/write page1
+
+4. 倒数第三页
+.. .. ..509: pte 0x0000000021fdd813 pa 0x0000000087f76000
+权限位​：0x13 = 10011 = U|R|V 
+因此，这一页是一个“用户可读、只读（不可写不可执行）”的页面，通常用于存放只读数据段（如 .rodata）、字符串常量或其他不需要修改的全局常量。

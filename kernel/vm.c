@@ -19,9 +19,9 @@ extern char trampoline[]; // trampoline.S
 pagetable_t
 kvmmake(void)
 {
-  pagetable_t kpgtbl;
+  pagetable_t kpgtbl; // PA of kernel_pagetable
 
-  kpgtbl = (pagetable_t) kalloc();
+  kpgtbl = (pagetable_t) kalloc(); // allocate 1 physical page for kernel page table
   memset(kpgtbl, 0, PGSIZE);
 
   // uart registers
@@ -87,14 +87,14 @@ walk(pagetable_t pagetable, uint64 va, int alloc)
     pte_t *pte = &pagetable[PX(level, va)];
     if(*pte & PTE_V) {
       pagetable = (pagetable_t)PTE2PA(*pte);
-    } else {
+    } else { // create a new page directory
       if(!alloc || (pagetable = (pde_t*)kalloc()) == 0)
         return 0;
       memset(pagetable, 0, PGSIZE);
-      *pte = PA2PTE(pagetable) | PTE_V;
+      *pte = PA2PTE(pagetable) | PTE_V; // create a new PTE in the new page directory, set valid bit
     }
   }
-  return &pagetable[PX(0, va)];
+  return &pagetable[PX(0, va)]; // return the leave PTE that points to the PA of VA
 }
 
 // Look up a virtual address, return the physical address,
@@ -123,6 +123,7 @@ walkaddr(pagetable_t pagetable, uint64 va)
 // add a mapping to the kernel page table.
 // only used when booting.
 // does not flush TLB or enable paging.
+// kernel page table, virtual address, physical address, size, permission bits
 void
 kvmmap(pagetable_t kpgtbl, uint64 va, uint64 pa, uint64 sz, int perm)
 {
@@ -143,14 +144,17 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
   if(size == 0)
     panic("mappages: size");
   
-  a = PGROUNDDOWN(va);
+  a = PGROUNDDOWN(va); // get the starting page address of the virtual address
   last = PGROUNDDOWN(va + size - 1);
   for(;;){
+    // find if the va already has a valid pa, and create any required page-table pages
     if((pte = walk(pagetable, a, 1)) == 0)
       return -1;
     if(*pte & PTE_V)
       panic("mappages: remap");
+    // install a new PTE
     *pte = PA2PTE(pa) | perm | PTE_V;
+    // if last occupies another page 
     if(a == last)
       break;
     a += PGSIZE;
@@ -356,8 +360,8 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
     n = PGSIZE - (dstva - va0);
     if(n > len)
       n = len;
-    memmove((void *)(pa0 + (dstva - va0)), src, n);
-
+    memmove((void *)(pa0 + (dstva - va0)), src, n); // move to the relating PA
+    // if n < len, have to move to the next page
     len -= n;
     src += n;
     dstva = va0 + PGSIZE;
@@ -431,4 +435,43 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
+}
+
+void tblprint(pagetable_t pagetable, int depth) {
+  for (int i = 0; i < 512; i++) {
+    // there are 2^9 = 512 PTEs in a page table.
+    pte_t pte = pagetable[i];
+    if (!(pte & PTE_V)) { // not a valid pte
+      continue;
+    }
+    for (int d = 0; d < depth; d++) {
+      printf(" ..");
+    }
+    
+    printf(" ..%d: pte %p pa %p\n", i, (void *)pte, (void *)PTE2PA(pte));
+    if ((pte & (PTE_R|PTE_W|PTE_X)) == 0) {
+      // this PTE points to a lower-level page table.
+      uint64 child = PTE2PA(pte);
+      tblprint((pagetable_t)child, depth + 1);
+    }
+  }
+}
+
+// take a pagetable_t argument, and print
+// that pagetable in the format described below.
+// 
+// page table 0x0000000087f6e000
+//  ..0: pte 0x0000000021fda801 pa 0x0000000087f6a000
+//  .. ..0: pte 0x0000000021fda401 pa 0x0000000087f69000
+//  .. .. ..0: pte 0x0000000021fdac1f pa 0x0000000087f6b000
+//  .. .. ..1: pte 0x0000000021fda00f pa 0x0000000087f68000
+//  .. .. ..2: pte 0x0000000021fd9c1f pa 0x0000000087f67000
+//  ..255: pte 0x0000000021fdb401 pa 0x0000000087f6d000
+//  .. ..511: pte 0x0000000021fdb001 pa 0x0000000087f6c000
+//  .. .. ..509: pte 0x0000000021fdd813 pa 0x0000000087f76000
+//  .. .. ..510: pte 0x0000000021fddc07 pa 0x0000000087f77000
+//  .. .. ..511: pte 0x0000000020001c0b pa 0x0000000080007000
+void vmprint(pagetable_t pagetable) {
+  printf("page table %p\n", (void *)pagetable);
+  tblprint(pagetable, 0);
 }

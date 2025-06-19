@@ -1,0 +1,92 @@
+{
+  "$schema": "https://aka.ms/codetour-schema",
+  "title": "lab3-dev-notes",
+  "steps": [
+    {
+      "file": "kernel/memlayout.h",
+      "description": "![On the left, xv6’s kernel address space. On the right, the RISC-V physical address space that xv6 expects to see.](/assets/kernel_memlayout.png)",
+      "line": 48
+    },
+    {
+      "file": "kernel/memlayout.h",
+      "description": "stack从高地址向低地址生长，所以KSTACK的起始地址是高地址\n每个KSTACK和guard page占1页，所以每个进程总共占2页\n初始有3页固定偏移: 3*PGSIZE，为蹦床页面和初始保护页面预留的空间\nTRAMPOLINE\n├─ Guard page (固定的3*PGSIZE偏移中包含)\n├─ Guard page  \n├─ Guard page\n├─ Kstack 0     ← KSTACK(0) = TRAMPOLINE - 3*PGSIZE\n├─ Guard page   ← 这个guard page被进程0和进程1共享！\n├─ Kstack 1     ← KSTACK(1) = TRAMPOLINE - 5*PGSIZE\n├─ Guard page   ← 这个guard page被进程1和进程2共享！\n├─ Kstack 2     ← KSTACK(2) = TRAMPOLINE - 7*PGSIZE\n├─ Guard page\n└─ ...",
+      "line": 60
+    },
+    {
+      "file": "kernel/memlayout.h",
+      "description": "![user memory layout](/assets/user_memlayout.png)",
+      "line": 62
+    },
+    {
+      "file": "kernel/vm.c",
+      "description": "![address translation detail](/assets/address_trans.png)",
+      "line": 81
+    },
+    {
+      "file": "kernel/riscv.h",
+      "description": "see ![PTE structure figure](/assets/address_trans.png) for detail",
+      "line": 350
+    },
+    {
+      "file": "kernel/riscv.h",
+      "description": "1. ​指令分解​\n​**csrw satp, %0**​\ncsrw 是 RISC-V 的 ​CSR 写指令​（Control and Status Register Write），功能是将通用寄存器的值写入指定的 CSR 寄存器\n。\nsatp 是目标 CSR 寄存器，负责控制虚拟内存地址转换​（如页表基地址、地址空间标识符 ASID、内存模式等）\n。\n%0 是占位符，表示内联汇编的第一个输入操作数（即变量 x）。\n​**输入约束 : \"r\" (x)**​\n\"r\" 要求编译器将变量 x 的值分配到一个通用寄存器中（如 t0、a0 等）\n。\n执行时，该寄存器的值会被写入 satp。\n​**volatile 关键字**​\n禁止编译器优化或重排这段汇编，确保指令按原顺序执行​（对硬件寄存器操作至关重要）\n。",
+      "line": 207
+    },
+    {
+      "file": "kernel/riscv.h",
+      "description": "when xv6 changes a page table, it must tell the CPU to invalidate corresponding cached TLB entries.\nXv6 executes sfence.vma in kvminithart after reloading the satp register, and in the trampoline code that switches to a\nuser page table before returning to user space.\n",
+      "line": 333
+    },
+    {
+      "file": "kernel/kalloc.c",
+      "description": "kinit calls freerange to add memory to the free list via per-page calls to kfree. A PTE can only refer to a physical address that is aligned on a 4096-byte boundary (is a multiple of 4096), so freerange uses PGROUNDUP to ensure that it frees only aligned physical addresses. The allocator starts with no memory; these calls to kfree give it some to manage.",
+      "line": 31
+    },
+    {
+      "file": "kernel/exec.c",
+      "description": "The first step is a quick check that the file probably contains an ELF binary. An ELF binary starts with the four-byte “magic number” 0x7F, ‘E’, ‘L’, ‘F’, or ELF_MAGIC (kernel/elf.h:3). If the ELF header has the right magic number, exec assumes that the binary is well-formed.",
+      "line": 33
+    },
+    {
+      "file": "kernel/exec.c",
+      "description": "allocates a new page table with no user mappings with proc_pagetable",
+      "line": 38
+    },
+    {
+      "file": "kernel/exec.c",
+      "description": "allocates memory for each ELF segment with uvmalloc",
+      "line": 52
+    },
+    {
+      "file": "kernel/exec.c",
+      "description": "loads each segment into memory with loadseg",
+      "line": 57
+    },
+    {
+      "file": "kernel/memlayout.h",
+      "description": "Some operating systems (e.g., Linux) speed up certain system calls by sharing data in a read-only region between userspace and the kernel. This eliminates the need for kernel crossings when performing these system calls.\n\n​进程/线程信息查询​（如 getpid, gettid）\n\n​传统方式​：每次查询进程 ID 或线程 ID 需触发系统调用。\n\n​内核共享数据​：\n内核将当前进程的 PID、TID 等信息存储在用户进程地址空间的固定只读区域（如 vsyscall 页或 VDSO）\n。\n用户程序直接读取该内存位置（例如 %gs 寄存器指向的线程局部存储区域）。\n​效果​：频繁查询线程信息的应用（如多线程服务器）减少 >90% 的上下文切换开销。",
+      "line": 74
+    },
+    {
+      "file": "kernel/proc.c",
+      "description": "TRAMPOLINE（蹦床页）的物理地址共享​\n\n​所有进程共享同一物理页​：\nTRAMPOLINE包含用户态与内核态切换的通用代码（如uservec），其内容对所有进程完全相同。因此，xv6在内核初始化时仅分配一个物理页，并将该物理页映射到所有进程页表以及内核页表的相同虚拟地址​（TRAMPOLINE，通常位于虚拟地址空间顶端，如0x3ffffff000）\n。\n\n​映射权限​：\n用户页表中映射为PTE_R | PTE_X（用户可执行），内核页表中映射为PTE_R | PTE_W（内核可读写），确保陷阱处理代码既能被用户态触发，又能在内核态安全执行\n。",
+      "line": 196
+    },
+    {
+      "file": "kernel/proc.c",
+      "description": "TRAPFRAME（陷阱帧）的物理地址独立​\n​\n\n每个进程独占一个物理页​：\nTRAPFRAME用于保存进程陷入内核时的寄存器状态​（如PC、SP等），内容进程独有。在allocproc()中，每个新进程通过kalloc()分配独立的物理页，存储其struct trapframe数据\n。\n\n​映射位置​：\n该物理页被映射到进程用户页表的固定虚拟地址TRAPFRAME（紧邻TRAMPOLINE下方，如0x3fffffe000），但不映射到内核页表。内核通过进程页表访问该数据\n。",
+      "line": 203
+    },
+    {
+      "file": "kernel/proc.c",
+      "description": "​**uvmfree() 释放的对象**​：\n✅ 用户页表自身占用的物理内存。\n✅ 用户私有数据区的物理页帧（通过 uvmunmap 间接释放）。\n​\n\n不释放的共享页​：\n❌ TRAMPOLINE、TRAPFRAME、USYSCALL 等共享页（由内核统一管理）\n。",
+      "line": 218
+    },
+    {
+      "file": "kernel/vm.c",
+      "description": "​**pte & PTE_V**​：\n检查 PTE 的 PTE_V（Valid）标志位是否为 1，表示该页表项有效（即物理页存在或下一级页表存在）\n。\n\n\n​**(pte & (PTE_R|PTE_W|PTE_X)) == 0**​：\n检查 PTE 的权限位（读/写/执行）是否全为 0。\n若权限位全零，说明该 PTE ​不直接映射物理页，而是指向下一级页表的物理地址（即中间节点）\n。",
+      "line": 459
+    }
+  ],
+  "ref": "pgtbl"
+}

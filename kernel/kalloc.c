@@ -23,6 +23,7 @@ struct {
   struct run *freelist;
 } kmem;
 
+// kinit initializes the free list to hold every page between the end of the kernel and PHYSTOP.
 void
 kinit()
 {
@@ -57,6 +58,7 @@ kfree(void *pa)
   r = (struct run*)pa;
 
   acquire(&kmem.lock);
+  // insert at list head
   r->next = kmem.freelist;
   kmem.freelist = r;
   release(&kmem.lock);

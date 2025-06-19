@@ -198,12 +198,14 @@ w_pmpaddr0(uint64 x)
 
 #define MAKE_SATP(pagetable) (SATP_SV39 | (((uint64)pagetable) >> 12))
 
-// supervisor address translation and protection;
+// supervisor address translation and protection; SATP register
 // holds the address of the page table.
 static inline void 
 w_satp(uint64 x)
 {
-  asm volatile("csrw satp, %0" : : "r" (x));
+  // inline assembly code, volatile prevents the compiler from optimizing the assembly code
+  // satp is a CSR(control and status register), write into it
+  asm volatile("csrw satp, %0" : : "r" (x)); 
 }
 
 static inline uint64
@@ -336,25 +338,26 @@ sfence_vma()
 #define PGSHIFT 12  // bits of offset within a page
 
 #define PGROUNDUP(sz)  (((sz)+PGSIZE-1) & ~(PGSIZE-1))
-#define PGROUNDDOWN(a) (((a)) & ~(PGSIZE-1))
+#define PGROUNDDOWN(a) (((a)) & ~(PGSIZE-1)) // last 12bits set to 0
 
 #define PTE_V (1L << 0) // valid
 #define PTE_R (1L << 1)
 #define PTE_W (1L << 2)
 #define PTE_X (1L << 3)
 #define PTE_U (1L << 4) // 1 -> user can access
+#define PTE_A (1L << 6)
 
 // shift a physical address to the right place for a PTE.
-#define PA2PTE(pa) ((((uint64)pa) >> 12) << 10)
+#define PA2PTE(pa) ((((uint64)pa) >> 12) << 10) // physical address to PTE
 
-#define PTE2PA(pte) (((pte) >> 10) << 12)
+#define PTE2PA(pte) (((pte) >> 10) << 12) // PTE to physical address
 
 #define PTE_FLAGS(pte) ((pte) & 0x3FF)
 
 // extract the three 9-bit page table indices from a virtual address.
 #define PXMASK          0x1FF // 9 bits
 #define PXSHIFT(level)  (PGSHIFT+(9*(level)))
-#define PX(level, va) ((((uint64) (va)) >> PXSHIFT(level)) & PXMASK)
+#define PX(level, va) ((((uint64) (va)) >> PXSHIFT(level)) & PXMASK) // get PTE index in a pgtable
 
 // one beyond the highest possible virtual address.
 // MAXVA is actually one bit less than the max allowed by
@@ -362,5 +365,5 @@ sfence_vma()
 // that have the high bit set.
 #define MAXVA (1L << (9 + 9 + 9 + 12 - 1))
 
-typedef uint64 pte_t;
-typedef uint64 *pagetable_t; // 512 PTEs
+typedef uint64 pte_t; // 8 bytes per PTE
+typedef uint64 *pagetable_t; // pointer to page table; 512 PTEs, total 8*512 = 4096 bytes = 1 PGSIZE
