@@ -1,0 +1,117 @@
+{
+  "$schema": "https://aka.ms/codetour-schema",
+  "title": "lab4-dev-notes",
+  "steps": [
+    {
+      "file": "kernel/trampoline.S",
+      "description": "trampoline需要用assembly code实现，不然编译器可能会产生修改寄存器的指令，而我们需要保存寄存器值来恢复用户程序的执行。\n\nStoring to memory requires use of a register to hold the address, but at this point there are no general-purpose registers available! Luckily RISC-V provides a helping hand in the form of the sscratch register.\n\nBefore entering user space, the kernel set sscratch to point to a per-process trapframe structure that (among other things) has space to save the 32 user registers (kernel/proc.h:44). Because satp still refers to the user page table, uservec needs the trapframe to be mapped in the user address space. When creating each process, xv6 allocates a page for the process’s trapframe, and arranges for it always to be mapped at user virtual address TRAPFRAME, which is just below TRAMPOLINE. The process’s p->trapframe also points to the trapframe, though at its physical address so the kernel can use it through the kernel page table.",
+      "line": 23
+    },
+    {
+      "file": "kernel/trap.c",
+      "description": "把stvec的值设置成kernelvec的地址，因为现在已经处于kernel中，如果再发生trap，转到kerneltrap对应的处理中去，这里面就会和usertrap有不一样的操作，比如说不用更换page table基址等等",
+      "line": 46
+    },
+    {
+      "file": "kernel/trap.c",
+      "description": "myproc通过读取hartid(多核cpu的核id)来获取当前执行的进程信息，hartid在trampoline.S中已经存到了tp寄存器中，所以直接读tp寄存器。",
+      "line": 48
+    },
+    {
+      "file": "user/usys.S",
+      "description": "ecall会做三件事：\n1. change mode from user to supervisor\n2. save $pc to $sepc\n3. jump to $stvec(i.e. set $pc to $stvec)",
+      "line": 6
+    },
+    {
+      "file": "kernel/trap.c",
+      "description": "return value",
+      "line": 51
+    },
+    {
+      "file": "kernel/syscall.c",
+      "description": "return value",
+      "line": 144
+    },
+    {
+      "file": "kernel/trap.c",
+      "description": "check if the process is killed, we won't do system call for a killed process.",
+      "line": 56
+    },
+    {
+      "file": "user/call.asm",
+      "description": "这几行代码建立了函数的栈帧。想象栈就像一个向下增长的盒子，每当我们调用函数时，都需要在这个盒子里为当前函数开辟一个专用空间。\n\naddi sp,sp,-16：将栈指针向下移动 16 字节，为当前函数分配栈空间\nsd ra,8(sp)：将返回地址寄存器（ra）保存到栈中，这样函数结束时知道要返回哪里\nsd s0,0(sp)：保存帧指针寄存器（s0）的值\naddi s0,sp,16：设置新的帧指针，指向栈帧的底部",
+      "line": 43
+    },
+    {
+      "file": "user/call.asm",
+      "description": "准备 printf 函数的参数\n\n在 RISC-V 调用约定中，函数参数通过寄存器 a0、a1、a2 等传递。这里：\n\nli a2,13：将立即数 13 加载到 a2 寄存器（第三个参数）\nli a1,12：将立即数 12 加载到 a1 寄存器（第二个参数）\n\n注意这里的 12 很有趣！从 C 代码看，第二个参数应该是 f(8)+1，这意味着编译器已经在编译时计算出 f(8) 的值是 11，所以 f(8)+1 等于 12。这是编译器优化的结果。\n\nauipc a0,0x0 和 addi a0,a0,1952：这两条指令组合起来将格式字符串 \"%d %d\\n\" 的地址加载到 a0 寄存器中。auipc 指令将当前 PC 值加上立即数的高 20 位，然后 addi 加上低 12 位，最终得到字符串的完整地址。",
+      "line": 48
+    },
+    {
+      "file": "kernel/riscv.h",
+      "description": "the frame pointer of the currently executing function in the register s0\n\"r\" 让编译器自由选择寄存器，避免硬编码依赖特定寄存器（如eax），增强可移植性。\n= 表示写入，r 要求编译器分配通用寄存器。",
+      "line": 339
+    },
+    {
+      "file": "kernel/printf.c",
+      "description": "[stack image](/assets/stack.png)\n",
+      "line": 136
+    },
+    {
+      "file": "kernel/printf.c",
+      "description": "(uint64 *)fp-8 -> address of return address\n\n*(uint64 *)(fp - 8) -> return address",
+      "line": 138
+    },
+    {
+      "file": "kernel/printf.c",
+      "description": "Xv6 allocates one page for each stack in the xv6 kernel at PAGE-aligned address. You can compute the top and bottom address of the stack page by using PGROUNDDOWN(fp) and PGROUNDUP(fp)",
+      "line": 138
+    },
+    {
+      "file": "user/user.h",
+      "description": "declarations for new system calls",
+      "line": 26
+    },
+    {
+      "file": "user/usys.pl",
+      "description": "Generate usys.S, the stubs for new syscalls.",
+      "line": 39
+    },
+    {
+      "file": "kernel/syscall.h",
+      "description": "Update kernel/syscall.h",
+      "line": 23
+    },
+    {
+      "file": "kernel/syscall.c",
+      "description": "update  kernel/syscall.c",
+      "line": 132
+    },
+    {
+      "file": "kernel/proc.h",
+      "description": "Your sys_sigalarm() should store the alarm interval and the pointer to the handler function in new fields in the proc structure (in kernel/proc.h).",
+      "line": 108
+    },
+    {
+      "file": "kernel/proc.h",
+      "description": "You'll need to keep track of how many ticks have passed since the last call (or are left until the next call) to a process's alarm handler; you'll need a new field in struct proc for this too. You can initialize proc fields in allocproc() in proc.c.",
+      "line": 110
+    },
+    {
+      "file": "kernel/trap.c",
+      "description": "Only invoke the alarm function if the process has a timer outstanding. Note that the address of the user's alarm function might be 0",
+      "line": 81
+    },
+    {
+      "file": "user/call.asm",
+      "description": "a0 = a0 + 3",
+      "line": 32
+    },
+    {
+      "file": "kernel/trap.c",
+      "description": "1. ecall saves user $pc in $sepc \n2. usertrap() saves $sepc in p->trapframe->epc\n3. usertrapret() restores $sepc\n4. sret in userret in trampoline.S restores user $pc with $sepc\n\nso if we need to jump to the handler, we just change p->trapframe->epc",
+      "line": 93
+    }
+  ],
+  "ref": "traps"
+}

@@ -76,9 +76,31 @@ usertrap(void)
   if(p->killed)
     exit(-1);
 
-  // give up the CPU if this is a timer interrupt.
-  if(which_dev == 2)
+  // this is a timer interrupt.
+  if(which_dev == 2) {
+    // printf("timer interrupt start.\n");
+    // printf("interval==%d\n", p->interval);
+    // printf("passed_ticks==%d\n", p->passed_ticks);
+    // printf("handler==%p\n", (void *)p->handler);
+    if (p->interval != 0) { // if the process has a timer outstanding
+      if (p->passed_ticks == p->interval) {
+        // if a handler hasn't returned yet, the kernel shouldn't call it again.
+        if (p->allow_h) {
+          // invoke handler fn if alarm interval expires
+          // save the user registers to resume after handler executes
+          p->saved_tf = *(p->trapframe);
+          // just set p->trapframe->epc
+          p->trapframe->epc = p->handler;
+          p->allow_h = 0;
+        }
+        p->passed_ticks = 0;
+      } else {
+        p->passed_ticks++;
+      }
+    }
+    // give up the CPU
     yield();
+  }
 
   usertrapret();
 }
@@ -121,7 +143,7 @@ usertrapret(void)
   // tell trampoline.S the user page table to switch to.
   uint64 satp = MAKE_SATP(p->pagetable);
 
-  // jump to trampoline.S at the top of memory, which 
+  // jump to trampoline.S userret at the top of memory, which 
   // switches to the user page table, restores user registers,
   // and switches to user mode with sret.
   uint64 fn = TRAMPOLINE + (userret - trampoline);

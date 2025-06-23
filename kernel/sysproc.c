@@ -70,6 +70,7 @@ sys_sleep(void)
     sleep(&ticks, &tickslock);
   }
   release(&tickslock);
+  backtrace();
   return 0;
 }
 
@@ -94,4 +95,41 @@ sys_uptime(void)
   xticks = ticks;
   release(&tickslock);
   return xticks;
+}
+
+uint64 sys_sigalarm(void) {
+  // printf("sys_sigalarm start.\n");
+  struct proc *p = myproc();
+  int ticks;
+  uint64 handler;
+
+  if (argint(0, &ticks) < 0) {
+    return -1;
+  }
+
+  if (argaddr(1, &handler) < 0) {
+    return -1;
+  }
+
+  // printf("param handler==%d\n", handler);
+
+  // set the alarm clock with the params provided by user sys call
+  p->interval = ticks;
+  p->handler = handler;
+  p->passed_ticks = 0;
+
+  // allow calling the handler
+  p->allow_h = 1;
+
+  // the timer interrupt in usertrap() will invoke handler
+  return 0;
+}
+
+uint64 sys_sigreturn(void) {
+  struct proc *p = myproc();
+  // restore user pc, sp
+  *(p->trapframe) = p->saved_tf;
+  // allow calling handler after handler retunrs
+  p->allow_h = 1;
+  return 0;
 }

@@ -122,6 +122,7 @@ panic(char *s)
   printf(s);
   printf("\n");
   panicked = 1; // freeze uart output from other CPUs
+  backtrace();
   for(;;)
     ;
 }
@@ -131,4 +132,15 @@ printfinit(void)
 {
   initlock(&pr.lock, "pr");
   pr.locking = 1;
+}
+
+void backtrace(void) {
+  uint64 fp = r_fp(); // current frame pointer
+  uint64 max_address = PGROUNDUP(fp); // the max address of this stack
+
+  while (fp < max_address) {
+    printf("%p\n", *(uint64 *)(fp - 8)); // return address
+    fp = *(uint64 *)(fp - 16); // the prev frame fp
+  }
+
 }

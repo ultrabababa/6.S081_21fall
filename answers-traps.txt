@@ -1,0 +1,55 @@
+Q1:
+Which registers contain arguments to functions? For example, which register holds 13 in main's call to printf?
+
+A1:
+a0, a1, a2; a2
+
+Q2:
+Where is the call to function f in the assembly code for main? Where is the call to g? (Hint: the compiler may inline functions.)
+
+A2:
+	26:	45b1                	li	a1,12 # inline functions
+
+Q3:
+At what address is the function printf located?
+
+A3:
+0x628
+
+Q4:
+What value is in the register ra just after the jalr to printf in main?
+
+A4:
+0x38
+The jalr (Jump and Link Register) instruction does two crucial things simultaneously:
+1. It jumps to the target address
+2. It saves the return address in the ra register
+
+Q5:
+Run the following code.
+
+	unsigned int i = 0x00646c72;
+	printf("H%x Wo%s", 57616, &i);
+      
+What is the output?
+
+A5:
+57616=0xE110 0x00646c72="rld\0"
+output: HE110 World
+
+
+Q5:
+The output depends on that fact that the RISC-V is little-endian. If the RISC-V were instead big-endian what would you set i to in order to yield the same output? Would you need to change 57616 to a different value?
+
+A5:
+set i = 0x726c6400;
+The value 57616 does not need to change! This integer is passed by value to printf, not by reference. The printf function receives the actual numerical value 57616 and converts it to hexadecimal (0xE110) for display. This conversion process is independent of how the bytes happen to be arranged in memory.
+
+Q6:
+In the following code, what is going to be printed after 'y='? (note: the answer is not a specific value.) Why does this happen?
+
+	printf("x=%d y=%d", 3);
+
+A6:
+random value in a2
+printf reads the format string, sees two %d placeholders, and dutifully assumes you've provided two arguments. When it processes the first %d, it correctly reads the value 3 from register a1. But when it encounters the second %d, it reads whatever random value happens to be sitting in register a2.
