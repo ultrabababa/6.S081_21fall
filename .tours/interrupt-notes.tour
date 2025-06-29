@@ -1,0 +1,162 @@
+{
+  "$schema": "https://aka.ms/codetour-schema",
+  "title": "interrupt-notes",
+  "steps": [
+    {
+      "file": "user/init.c",
+      "description": "这是一个字符串数组，用于作为 exec 函数的参数。它表示要执行的程序是 \"sh\"，并且参数列表以 0 (NULL) 结尾，这是 C 语言中约定俗成的做法。这意味着 sh 将以没有任何命令行参数的形式启动。",
+      "line": 12
+    },
+    {
+      "file": "user/init.c",
+      "description": "pid 将用于存储子进程（sh）的进程 ID，wpid 将用于存储 wait 系统调用返回的已退出子进程的 ID。",
+      "line": 17
+    },
+    {
+      "file": "user/init.c",
+      "description": "这部分代码处理 控制台的初始化：\n\nopen(\"console\", O_RDWR): 尝试打开名为 \"console\" 的设备文件，以读写模式。在 xv6 中，console 是一个特殊的设备文件，它代表了用户的终端。\n\nif(open(...) < 0): 如果第一次 open 失败（例如，系统刚刚启动，console 设备文件可能还不存在），则执行 if 块内的代码。\n\nmknod(\"console\", CONSOLE, 0): mknod 是一个系统调用，用于创建设备文件。\n\n\"console\": 设备文件的名称。\n\nCONSOLE: 这是一个宏，代表了控制台设备的主设备号 (major device number)。在 xv6 中，主设备号用于标识设备类型（例如，控制台、磁盘等）。\n\n0: 这是次设备号 (minor device number)，对于控制台设备，通常不区分不同的次设备。\n\nopen(\"console\", O_RDWR): 在 mknod 创建了 console 设备文件之后，再次尝试以读写模式打开它。这次应该会成功。",
+      "line": 19
+    },
+    {
+      "file": "user/init.c",
+      "description": "dup(oldfd) 是一个系统调用，它会复制一个现有的文件描述符，并返回一个指向与 oldfd 相同文件的最小可用文件描述符。\n\ndup(0) 第一次调用：由于文件描述符 0 已经打开并指向控制台，dup(0) 会复制它，并将复制后的文件描述符 1（标准输出 stdout）指向同一个控制台设备。\n\ndup(0) 第二次调用：同样，它会复制文件描述符 0，并将复制后的文件描述符 2（标准错误 stderr）指向同一个控制台设备。\n\n经过这两行代码，stdin (0), stdout (1), stderr (2) 都被成功地重定向到控制台，这是所有 Unix-like 程序正常运行的基础。",
+      "line": 23
+    },
+    {
+      "file": "user/init.c",
+      "description": "这是一个外层无限循环，确保 init 进程永远运行。在这个循环内部：\n\nprintf(\"init: starting sh\\n\"): 打印一条消息，表明 init 正在尝试启动 shell。\n\npid = fork(): fork 系统调用创建一个新的子进程。\n\n在父进程中，fork 返回子进程的 pid（大于 0）。\n\n在子进程中，fork 返回 0。\n\n如果 fork 失败，则返回 -1。\n\nif(pid < 0): 如果 fork 失败，init 打印错误信息并退出。这通常表示系统资源耗尽等严重错误。\n\nif(pid == 0): 这段代码只在子进程中执行。",
+      "line": 26
+    },
+    {
+      "file": "user/init.c",
+      "description": "exec 系统调用将当前子进程的内存映像替换为新的程序 (sh)。如果 exec 成功，它不会返回；子进程会从 sh 程序的 main 函数开始执行。",
+      "line": 34
+    },
+    {
+      "file": "user/init.c",
+      "description": "这是一个内层无限循环，位于父进程（init）中，用于等待和管理子进程",
+      "line": 39
+    },
+    {
+      "file": "user/init.c",
+      "description": "wait 系统调用会阻塞父进程，直到它的一个子进程退出。它返回已退出子进程的 PID。 (int *) 0 表示不关心子进程的退出状态。",
+      "line": 42
+    },
+    {
+      "file": "user/init.c",
+      "description": "如果 wait 返回的 wpid 等于之前 fork 出来的 sh 进程的 pid，这意味着 sh 进程已经退出。\n\nbreak;: 跳出内层循环，回到外层循环。外层循环会再次 fork 并 exec 一个新的 sh 进程，从而重新启动 shell。",
+      "line": 44
+    },
+    {
+      "file": "user/init.c",
+      "description": "如果 wpid 不等于 sh 进程的 pid，但 wpid 是一个有效的正数，这意味着有一个**“孤儿进程” (parentless process)** 刚刚退出。在 Unix-like 系统中，如果一个进程的父进程在其子进程之前退出，该子进程就会成为“孤儿”，并会被 init 进程领养。当这些孤儿进程退出时，init 进程会负责回收它们的资源（即调用 wait 来处理它们），防止它们变成“僵尸进程” (zombie process)。在这种情况下，init 只是简单地处理掉它们，然后继续等待 sh 进程退出。",
+      "line": 50
+    },
+    {
+      "file": "user/sh.c",
+      "description": "声明一个缓冲区用于存储用户输入。",
+      "line": 147
+    },
+    {
+      "file": "user/sh.c",
+      "description": "循环打开 console 设备。这个循环的目的是确保 stdin (0), stdout (1), stderr (2) 都已经被正确地打开并指向 console。",
+      "line": 151
+    },
+    {
+      "file": "user/sh.c",
+      "description": "如果 open 返回的文件描述符大于等于 3（意味着 0, 1, 2 已经正确设置），那么就关闭这个多余的 fd 并退出循环。这是一种健壮性检查，确保 shell 有正确的标准文件描述符。",
+      "line": 152
+    },
+    {
+      "file": "user/sh.c",
+      "description": "打印 Shell 提示符 $ 到标准错误 (fd 2)。",
+      "line": 136
+    },
+    {
+      "file": "user/printf.c",
+      "description": "int state: 状态变量，用于跟踪当前解析模式。\n\nstate = 0: 正常模式，直接打印字符。\n\nstate = '%\": 遇到了 % 字符，表示下一个字符是格式说明符。",
+      "line": 60
+    },
+    {
+      "file": "user/printf.c",
+      "description": "shell 向console输入$符号直接调用这里",
+      "line": 64
+    },
+    {
+      "file": "user/printf.c",
+      "description": "system call usertrap然后调用sys_write函数",
+      "line": 12
+    },
+    {
+      "file": "kernel/sysfile.c",
+      "description": "调用filewrite",
+      "line": 91
+    },
+    {
+      "file": "kernel/file.c",
+      "description": "在filewrite函数中首先会判断文件描述符的类型。mknod生成的文件描述符属于设  备(FD_DEVICE),而对于设备类型的文件描述符,我们会为这个特定的设备执  行设备相应的write函数。因为我们现在的设备是Console,所以我们知道这里会调  用console.c中的consolewrite函数。",
+      "line": 147
+    },
+    {
+      "file": "kernel/console.c",
+      "description": "这里先通过either_copyin将字符拷入,之后调用uartputc函数。uartputc函数将字符  写入给UART设备,所以你可以认为consolewrite是一个UART驱动的top部分。  uart.c文件中的uartputc函数会实际的打印字符。",
+      "line": 65
+    },
+    {
+      "file": "kernel/uart.c",
+      "description": "在UART的内部会有一个buffer用来发送数据,  buffer的大小是32个字符。同时还有一个为consumer提供的读指针和为producer提  供的写指针,来构建一个环形的buffer(注,或者可以认为是环形队列)。",
+      "line": 44
+    },
+    {
+      "file": "kernel/uart.c",
+      "description": "在我们的例子中,Shell是producer,所以需要调用uartputc函数。在函数中第一件  事情是判断环形buffer是否已经满了。如果读写指针相同,那么buffer是空的,如果  写指针加1等于读指针,那么buffer满了。当buffer是满的时候,向其写入数据是没  有意义的,所以这里会sleep一段时间,将CPU出让给其他进程。当然,对于我们  来说,buffer必然不是满的,因为提示符“$”是我们送出的第一个字符。所以代码会  走到else,字符会被送到buffer中,更新写指针,之后再调用uartstart函数。",
+      "line": 97
+    },
+    {
+      "file": "kernel/uart.c",
+      "description": "uartstart就是通知设备执行操作。首先是检查当前设备是否空闲,如果空闲的话,  我们会从buffer中读出数据,然后将数据写入到THR(Transmission Holding  Register)发送寄存器。这里相当于告诉设备,我这里有一个字节需要你来发送。  一旦数据送到了设备,系统调用会返回,用户应用程序Shell就可以继续执行。这里  从内核返回到用户空间的机制与lec06的trap机制是一样的。  与此同时,UART设备会将数据送出。在某个时间点,我们会收到中断,因为我们  之前设置了要处理UART设备中断。",
+      "line": 159
+    },
+    {
+      "file": "kernel/trap.c",
+      "description": "在我们向Console输出字符时（此时正在执行write系统调用，并且device中断也打开了）,如果发生了中断,RISC-V会做什么操作?",
+      "line": 65
+    },
+    {
+      "file": "kernel/trap.c",
+      "description": " Purpose: Asks the PLIC, \"What is the highest-priority pending interrupt that I should handle right now?\"",
+      "line": 186
+    },
+    {
+      "file": "kernel/plic.c",
+      "description": " * How it works: It reads a special memory-mapped register (PLIC_SCLAIM) for the current hart. Reading this register has two effects:\n  \n           1. It returns the ID number of the interrupt to be serviced (e.g., UART0_IRQ).\n           \n           2. It automatically tells the PLIC that this interrupt is now being handled, so it won't be offered\n              to another hart.\n              \n       * The function then returns this interrupt ID.",
+      "line": 33
+    },
+    {
+      "file": "kernel/uart.c",
+      "description": "会将Shell存储在buffer中的任意字  符送出",
+      "line": 192
+    },
+    {
+      "file": "user/sh.c",
+      "description": "Shell会调用read从键盘中读取字  符。 在read系统调用的底层,会调用fileread函数。在这个函数中,如果读取的文  件类型是设备,会调用相应设备的read函数。",
+      "line": 138
+    },
+    {
+      "file": "kernel/console.c",
+      "description": "默认情况下,字符会通过consputc,输出到console上给用户查看。之后,字符被  存放在buffer中。在遇到换行符的时候,唤醒之前sleep的进程,也就是Shell,再从  buffer中将数据读出。",
+      "line": 158
+    },
+    {
+      "file": "kernel/start.c",
+      "description": "Code executed in machine mode in start.c, before main, sets up to receive timer interrupts. Part of the job is to program the CLINT hardware (core-local interruptor) to generate an interrupt after a certain delay. Another part is to set up a scratch area, analogous to the trapframe, to help the timer interrupt handler save registers and the address of the CLINT registers. Finally, start sets mtvec to timervec and enables timer interrupts.",
+      "line": 47
+    },
+    {
+      "file": "kernel/trap.c",
+      "description": "A timer interrupt can occur at any point when user or kernel code is executing; there’s no way for the kernel to disable timer interrupts during critical operations. Thus the timer interrupt handler must do its job in a way guaranteed not to disturb interrupted kernel code. The basic strategy is for the handler to ask the RISC-V to raise a “software interrupt” and immediately return. The RISC-V delivers software interrupts to the kernel with the ordinary trap mechanism, and allows the kernel to disable them. The code to handle the software interrupt generated by a timer interrupt can be seen in devintr (kernel/trap.c:204).",
+      "line": 204
+    }
+  ],
+  "ref": "thread"
+}
