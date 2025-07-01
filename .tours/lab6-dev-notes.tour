@@ -1,0 +1,32 @@
+{
+  "$schema": "https://aka.ms/codetour-schema",
+  "title": "lab6-dev-notes",
+  "steps": [
+    {
+      "file": "user/uthread.c",
+      "description": "ref: proc.c 140",
+      "line": 100
+    },
+    {
+      "file": "user/uthread.c",
+      "description": "原本写的t->context.sp = (uint64)t->stack;有问题\n\nStacks grow downwards in RISC-V (and most architectures). So, t->stack is the base of the allocated stack memory (lowest address). To set sp to the top of the stack (highest address), you should set it to t->stack + STACK_SIZE.",
+      "line": 102
+    },
+    {
+      "file": "user/uthread.c",
+      "description": "all_thread 是一个全局数组。在 C/C++ 中，全局变量（包括全局数组）的内存空间是在程序启动时，在静态存储区（具体来说，如果没有显式初始化为非零值，通常是在 BSS 段）一次性分配好的。\n\nall_thread 数组本身：其所有的 MAX_THREAD 个 struct thread 结构体，都在静态存储区中预留了固定的、连续的内存空间。\n\n每个 struct thread 内部的成员：\n\nchar stack[STACK_SIZE]：这个数组是 struct thread 结构体的一个成员。因此，每个线程的栈空间 stack 也是作为其 struct thread 结构体的一部分，被分配在静态存储区内。\n\nint state 和 struct context context：同样，这些成员也都在各自的 struct thread 结构体内部，因此也随之分配在静态存储区。",
+      "line": 38
+    },
+    {
+      "file": "notxv6/barrier.c",
+      "description": " // 1. 记录线程当前参与的屏障轮次 ID。\n  //    这至关重要，用来区分被唤醒是因为本轮完成，还是仅仅是虚假唤醒，\n  //    抑或是被为未来轮次的信号唤醒。",
+      "line": 36
+    },
+    {
+      "file": "notxv6/barrier.c",
+      "description": "// 3. 不是最后一个到达的线程。等待直到当前轮次 (my_round_id) 完成，\n    //    这通过检查 `bstate.round` 是否已经推进来判断。\n    //    `while` 循环至关重要，用于处理虚假唤醒。",
+      "line": 44
+    }
+  ],
+  "ref": "thread"
+}

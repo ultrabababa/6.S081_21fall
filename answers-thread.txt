@@ -1,0 +1,8 @@
+在 insert 函数内部，当它尝试将新节点插入到链表的头部时，是最有可能发生丢失的关键点。
+
+比如线程a要先insert一个entry，在设置完e->next = n;之后被timer interrupt打断，执行线程b；
+线程b也要insert一个entry，在设置完e->next = n；之后继续执行*p = e; 
+这时list的头结点是线程b的new entry
+当线程b执行完后返回线程a，继续执行*p = e；此时的头结点被设置成了线程a的new entry
+但是在线程a的new entry当中，e->next还是最开始没有任何插入操作的list的头结点
+而不是线程b插入的new entry，所以线程b插入的new entry就丢失了

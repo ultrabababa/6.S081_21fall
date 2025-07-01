@@ -1,0 +1,47 @@
+{
+  "$schema": "https://aka.ms/codetour-schema",
+  "title": "lock-notes",
+  "steps": [
+    {
+      "file": "kernel/spinlock.c",
+      "description": "push_off(): 这行代码的作用是禁用中断。在获取锁之前禁用中断是为了防止死锁。设想一下，如果一个CPU获取了锁，然后发生了中断，中断处理程序可能也会尝试获取同一个锁，从而导致死锁。禁用中断可以避免这种情况。",
+      "line": 24
+    },
+    {
+      "file": "kernel/spinlock.c",
+      "description": "__sync_lock_test_and_set(&lk->locked, 1) 是一个GCC内置函数，它执行一个原子操作：\n\n它会读取 lk->locked 的当前值。\n\n然后将 lk->locked 的值设置为 1。\n\n最后返回 lk->locked 的旧值。\n\n“原子操作”意味着这个操作是不可中断的，即在多核环境下，多个CPU同时执行这个操作时，它们会像串行执行一样，只有一个CPU能够成功设置。\n\n如果 __sync_lock_test_and_set 返回 0（旧值是 0），说明锁之前是空闲的，当前CPU成功获取了锁。\n\n如果返回 1（旧值是 1），说明锁已经被其他CPU持有，当前CPU会进入 while 循环自旋（spin），不断地尝试获取锁，直到成功为止。这就是“自旋锁”名称的由来。\n\n在RISC-V架构上，这个操作通常会被编译成 amoswap.w.aq 指令，这是一个原子交换指令，并且带有“acquire”语义（确保内存操作的顺序性）。",
+      "line": 32
+    },
+    {
+      "file": "kernel/spinlock.c",
+      "description": "这是一个内存屏障（memory barrier）或内存栅栏。它的作用是告诉编译器和处理器，不要将在这条指令之前的内存读写操作（例如，临界区内的操作）重排到这条指令之后。这确保了在进入临界区（即锁被成功获取后）之前，所有相关的内存操作都已完成并可见，保证了内存操作的顺序性。在RISC-V上，这会生成一个 fence 指令。\n\n",
+      "line": 39
+    },
+    {
+      "file": "kernel/spinlock.c",
+      "description": "这行代码的作用是恢复中断。与 push_off() 对应，它重新启用中断，允许中断处理程序再次运行。",
+      "line": 71
+    },
+    {
+      "file": "kernel/spinlock.c",
+      "description": "xv6 re-enables interrupts when a CPU holds no spinlocks; it must do a little book-keeping to cope with nested critical sections. acquire calls push_off (kernel/spinlock.c:89) and release calls pop_off (kernel/spinlock.c:100) to track the nesting level of locks on the current CPU. When that count reaches zero, pop_off restores the interrupt enable state that existed at the start of the outermost critical section.",
+      "line": 108
+    },
+    {
+      "file": "kernel/proc.c",
+      "description": "检查：锁的嵌套深度是否正确。\n\nmycpu()->noff 是一个计数器，表示当前 CPU 持有的锁的数量（或者说，push_off() 被调用的次数）。\n\nnoff != 1 意味着在调用 sched 时，当前 CPU 要么没有持有任何锁（noff == 0），要么持有了多个锁（noff > 1）。\n\n这个检查非常关键：\n\n如果 noff == 0，说明没有持有 p->lock（与上一个检查重复，但提供了更细粒度的检查）。\n\n如果 noff > 1，说明除了 p->lock，还持有了其他锁。这会导致上面注释中提到的问题：如果调度器切换出去，而这些额外的锁没有被释放，其他 CPU 可能会因为等待这些锁而死锁。因此，sched 必须确保在切换上下文时，只持有当前进程的锁。",
+      "line": 482
+    },
+    {
+      "file": "kernel/proc.c",
+      "description": "intena 通常与 mycpu()->noff 这个计数器一起使用。\n\nnoff（number of locks held, 或者 \"no-off\" for interrupts off）表示当前 CPU 持有的锁的层数。每次调用 push_off()（通常伴随获取锁）时，noff 就会增加。每次调用 pop_off()（通常伴随释放锁）时，noff 就会减少。\n\n只有当 noff 为 0 且 intena 为真时，硬件中断才会被真正开启。 这确保了在持有锁的关键代码区域内，中断是禁用的，从而防止了因为中断处理程序试图获取相同锁而导致的死锁问题。\n\n当 noff > 0 时，即使 intena 为真，中断也不会被开启。\n\n保存当前 CPU 的 intena 值。\n\n在执行上下文切换之前，mycpu()->intena 存储着当前 CPU（更确切地说，是当前 CPU 上运行的调度器线程或之前被中断的进程）是否允许中断的原始状态。\n\n之所以需要保存它，是因为 swtch 函数会从 mycpu()->context 加载调度器线程的上下文，而这个上下文可能带有不同的中断状态。为了确保在后续的操作中，我们可以恢复到切换前的正确中断状态，所以需要将其临时存储在局部变量 intena 中。",
+      "line": 489
+    },
+    {
+      "file": "kernel/proc.c",
+      "description": "The return values of cpuid and mycpu are fragile: if the timer were to interrupt and cause the thread to yield and then move to a different CPU, a previously returned value would no longer be correct. To avoid this problem, xv6 requires that callers disable interrupts, and only enable them after they finish using the returned struct cpu.\n\nmyproc disables interrupts, invokes mycpu, fetches the current process pointer (c->proc) out of the struct cpu, and then enables interrupts. The return value of myproc is safe to use even if interrupts are enabled: if a timer interrupt moves the calling process to a different CPU, its struct proc pointer will stay the same.",
+      "line": 81
+    }
+  ],
+  "ref": "thread"
+}
